@@ -1,7 +1,7 @@
 
 <?php
 session_start();
-require_once "db.php";
+require_once __DIR__ . "/config/db.php";
 
 // Жүйеге кіргенін тексеру
 if (!isset($_SESSION["user_id"])) {
