@@ -4,7 +4,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Digital Twin — Жеке күнделік</title>
+
+    <title>Digital Twin — Жеке цифрлық күнделік</title>
 
     <style>
         * {
@@ -33,14 +34,24 @@
             color: #8064d8;
         }
 
+        nav {
+            display: flex;
+            align-items: center;
+            gap: 24px;
+        }
+
         nav a {
             text-decoration: none;
             color: #51486a;
-            margin-left: 24px;
+            font-size: 15px;
+        }
+
+        nav a:hover {
+            color: #8064d8;
         }
 
         .hero {
-            min-height: 75vh;
+            min-height: 70vh;
             display: flex;
             flex-direction: column;
             justify-content: center;
@@ -69,9 +80,14 @@
             display: inline-block;
             background: #8064d8;
             color: white;
-            padding: 14px 28px;
+            padding: 14px 30px;
             border-radius: 12px;
             text-decoration: none;
+            transition: 0.3s;
+        }
+
+        .button:hover {
+            background: #674bb8;
         }
 
         .features {
@@ -79,7 +95,12 @@
             justify-content: center;
             flex-wrap: wrap;
             gap: 20px;
-            padding: 20px 8% 60px;
+            padding: 30px 8% 70px;
+        }
+
+        .card-link {
+            text-decoration: none;
+            color: inherit;
         }
 
         .card {
@@ -87,16 +108,23 @@
             padding: 28px;
             border-radius: 18px;
             width: 260px;
+            min-height: 160px;
             box-shadow: 0 5px 20px #29243d0d;
+            transition: 0.3s;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px #29243d18;
         }
 
         .card h3 {
-            margin-bottom: 12px;
+            margin-bottom: 15px;
             color: #8064d8;
         }
 
         .card p {
-            line-height: 1.6;
+            line-height: 1.7;
             color: #706982;
         }
 
@@ -104,6 +132,7 @@
             text-align: center;
             padding: 25px;
             color: #706982;
+            background: white;
         }
 
         @media (max-width: 600px) {
@@ -112,8 +141,10 @@
                 gap: 18px;
             }
 
-            nav a {
-                margin: 0 8px;
+            nav {
+                flex-wrap: wrap;
+                justify-content: center;
+                gap: 15px;
             }
 
             .hero h1 {
@@ -126,16 +157,19 @@
 <body>
 
 <header>
+
     <div class="logo">Digital Twin ✦</div>
 
     <nav>
         <a href="index.php">Басты бет</a>
         <a href="login.php">Кіру</a>
-        <a href="dashboard.php">Күнделік</a>
+        <a href="register.php">Тіркелу</a>
     </nav>
+
 </header>
 
 <section class="hero">
+
     <h1>Өміріңді <span>басқар!</span></h1>
 
     <p>
@@ -144,24 +178,42 @@
         жеке цифрлық күнделік.
     </p>
 
-    <a href="login.php" class="button">Бастау →</a>
+    <a href="register.php" class="button">Бастау →</a>
+
 </section>
 
 <section class="features">
-    <div class="card">
-        <h3>📅 Күнделікті жоспар</h3>
-        <p>Күн сайынғы тапсырмаларың мен жоспарларыңды жаз.</p>
-    </div>
 
-    <div class="card">
-        <h3>🎯 Мақсаттар</h3>
-        <p>Мақсаттарыңды белгіле және орындалуын бақыла.</p>
-    </div>
+    <a href="login.php" class="card-link">
+        <div class="card">
+            <h3>📅 Күнделікті жоспар</h3>
+            <p>
+                Күн сайынғы тапсырмаларың мен жоспарларыңды
+                жазып, олардың орындалуын бақыла.
+            </p>
+        </div>
+    </a>
 
-    <div class="card">
-        <h3>📊 Өмір статистикасы</h3>
-        <p>Жетістіктеріңді бақылап, өзгерістеріңді көр.</p>
-    </div>
+    <a href="login.php" class="card-link">
+        <div class="card">
+            <h3>🎯 Мақсаттар</h3>
+            <p>
+                Жеке мақсаттарыңды белгіле, өңде және
+                олардың орындалуын бақыла.
+            </p>
+        </div>
+    </a>
+
+    <a href="login.php" class="card-link">
+        <div class="card">
+            <h3>📊 Өмір статистикасы</h3>
+            <p>
+                Жеке жетістіктеріңді бақылап,
+                өз дамуыңдағы өзгерістерді көр.
+            </p>
+        </div>
+    </a>
+
 </section>
 
 <footer>

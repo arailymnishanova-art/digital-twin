@@ -1,103 +1,105 @@
 
+<?php
+session_start();
+require_once "db.php";
+
+$message = "";
+
+if ($_SERVER["REQUEST_METHOD"] === "POST") {
+    $email = trim($_POST["email"] ?? "");
+    $password = $_POST["password"] ?? "";
+
+    $stmt = $pdo->prepare(
+        "SELECT id, name, password FROM users WHERE email = ?"
+    );
+    $stmt->execute([$email]);
+    $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if ($user && password_verify($password, $user["password"])) {
+        session_regenerate_id(true);
+        $_SESSION["user_id"] = $user["id"];
+        $_SESSION["user_name"] = $user["name"];
+
+        header("Location: dashboard.php");
+        exit;
+    } else {
+        $message = "Электрондық пошта немесе құпиясөз қате.";
+    }
+}
+?>
 <!DOCTYPE html>
 <html lang="kk">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Кіру — Digital Twin</title>
-
+    <title>Кіру | Digital Twin</title>
     <style>
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-
+        * { box-sizing: border-box; }
         body {
-            font-family: Arial, sans-serif;
-            background: #f7f5ff;
-            color: #29243d;
+            margin: 0;
             min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
+            display: grid;
+            place-items: center;
+            background: #f4f5fa;
+            font-family: Arial, sans-serif;
+            color: #252842;
         }
-
-        .login-box {
+        .card {
+            width: min(420px, 92%);
+            padding: 32px;
             background: white;
-            width: 100%;
-            max-width: 420px;
-            padding: 35px;
             border-radius: 20px;
-            box-shadow: 0 8px 30px #29243d12;
+            box-shadow: 0 10px 35px #25284212;
         }
-
-        h1 {
-            text-align: center;
-            color: #8064d8;
-            margin-bottom: 12px;
-        }
-
-        .subtitle {
-            text-align: center;
-            color: #706982;
-            margin-bottom: 28px;
-        }
-
-        label {
-            display: block;
-            margin: 16px 0 8px;
-        }
-
+        h1 { margin-top: 0; }
+        p { color: #666b80; line-height: 1.5; }
+        label { display: block; margin: 16px 0 7px; }
         input {
             width: 100%;
-            padding: 13px;
-            border: 1px solid #ddd6f5;
+            padding: 12px;
+            border: 1px solid #dcdfea;
             border-radius: 10px;
-            font-size: 16px;
         }
-
         button {
             width: 100%;
-            padding: 14px;
-            margin-top: 24px;
-            border: none;
+            margin-top: 22px;
+            padding: 13px;
+            border: 0;
             border-radius: 10px;
-            background: #8064d8;
+            background: #7067e8;
             color: white;
             font-size: 16px;
             cursor: pointer;
         }
-
-        .back {
-            display: block;
-            text-align: center;
-            margin-top: 20px;
-            color: #8064d8;
-            text-decoration: none;
-        }
+        .message { color: #c0392b; }
+        a { color: #6258dc; }
     </style>
 </head>
-
 <body>
+    <main class="card">
+        <h1>Digital Twin ✦</h1>
+        <p>Жеке күнделігіңе қош келдің!</p>
 
-<div class="login-box">
-    <h1>Digital Twin ✦</h1>
-    <p class="subtitle">Жеке күнделігіңе қош келдің!</p>
+        <?php if ($message !== ""): ?>
+            <p class="message">
+                <?= htmlspecialchars($message, ENT_QUOTES, "UTF-8") ?>
+            </p>
+        <?php endif; ?>
 
-    <form>
-        <label for="email">Электрондық пошта</label>
-        <input type="email" id="email" placeholder="example@mail.com" required>
+        <form method="POST">
+            <label for="email">Электрондық пошта</label>
+            <input id="email" type="email" name="email"
+                   required autocomplete="email">
 
-        <label for="password">Құпиясөз</label>
-        <input type="password" id="password" placeholder="Құпиясөзіңді енгіз" required>
+            <label for="password">Құпиясөз</label>
+            <input id="password" type="password" name="password"
+                   required autocomplete="current-password">
 
-        <button type="submit">Кіру</button>
-    </form>
+            <button type="submit">Кіру</button>
+        </form>
 
-    <a class="back" href="index.php">← Басты бетке қайту</a>
-</div>
-
+        <p>Аккаунтың жоқ па? <a href="register.php">Тіркелу</a></p>
+        <a href="index.php">← Басты бетке қайту</a>
+    </main>
 </body>
 </html>
