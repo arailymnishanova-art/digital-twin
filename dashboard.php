@@ -1,10 +1,57 @@
 
+<?php
+session_start();
+require_once "db.php";
+
+// Пайдаланушы жүйеге кіргенін тексеру
+if (!isset($_SESSION["user_id"])) {
+    header("Location: login.php");
+    exit;
+}
+
+$userId = (int) $_SESSION["user_id"];
+$userName = $_SESSION["user_name"] ?? "Пайдаланушы";
+
+// Мақсаттардың жалпы саны
+$stmt = $pdo->prepare(
+    "SELECT COUNT(*) FROM goals WHERE user_id = ?"
+);
+$stmt->execute([$userId]);
+$totalGoals = (int) $stmt->fetchColumn();
+
+// Орындалған мақсаттар саны
+$stmt = $pdo->prepare(
+    "SELECT COUNT(*) FROM goals
+     WHERE user_id = ? AND status = ?"
+);
+$stmt->execute([$userId, "Орындалды"]);
+$completedGoals = (int) $stmt->fetchColumn();
+
+// Күнделік жазбаларының саны
+$stmt = $pdo->prepare(
+    "SELECT COUNT(*) FROM journal_entries WHERE user_id = ?"
+);
+$stmt->execute([$userId]);
+$totalEntries = (int) $stmt->fetchColumn();
+
+// Соңғы мақсаттарды алу
+$stmt = $pdo->prepare(
+    "SELECT title, status
+     FROM goals
+     WHERE user_id = ?
+     ORDER BY id DESC
+     LIMIT 5"
+);
+$stmt->execute([$userId]);
+$goals = $stmt->fetchAll(PDO::FETCH_ASSOC);
+?>
+
 <!DOCTYPE html>
 <html lang="kk">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Жеке күнделік — Digital Twin</title>
+    <title>Жеке кабинет | Digital Twin</title>
 
     <style>
         * {
@@ -35,10 +82,19 @@
             font-weight: bold;
         }
 
+        nav {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 18px;
+        }
+
         nav a {
             color: #51486a;
             text-decoration: none;
-            margin-left: 18px;
+        }
+
+        nav a:hover {
+            color: #8064d8;
         }
 
         main {
@@ -63,7 +119,7 @@
             margin-bottom: 30px;
         }
 
-        .card {
+        .card, .plan {
             background: white;
             border-radius: 16px;
             padding: 25px;
@@ -82,23 +138,34 @@
             font-weight: bold;
         }
 
-        .plan {
-            background: white;
-            padding: 25px;
-            border-radius: 16px;
-        }
-
         .plan h2 {
             margin-bottom: 20px;
         }
 
-        .task {
+        .goal {
             padding: 15px 0;
             border-bottom: 1px solid #eeeaf7;
         }
 
-        .task:last-child {
+        .goal:last-child {
             border-bottom: none;
+        }
+
+        .muted {
+            color: #706982;
+            margin-top: 7px;
+        }
+
+        .empty {
+            color: #706982;
+        }
+
+        .manage-link {
+            display: inline-block;
+            margin-top: 20px;
+            color: #8064d8;
+            text-decoration: none;
+            font-weight: bold;
         }
 
         footer {
@@ -112,8 +179,8 @@
                 flex-direction: column;
             }
 
-            nav a {
-                margin: 0 6px;
+            nav {
+                justify-content: center;
             }
         }
     </style>
@@ -126,38 +193,80 @@
 
     <nav>
         <a href="index.php">Басты бет</a>
-        <a href="login.php">Кіру</a>
         <a href="journal.php">Күнделік</a>
+        <a href="goals.php">Мақсаттар</a>
+        <a href="logout.php">Шығу</a>
     </nav>
 </header>
 
 <main>
-    <h1>Менің күнделікті өмірім ✨</h1>
-    <p class="subtitle">Өз мақсаттарың мен жетістіктеріңді бір жерден бақыла.</p>
+    <h1>
+        Қош келдің, <?= htmlspecialchars($userName, ENT_QUOTES, "UTF-8") ?>! ✨
+    </h1>
+
+    <p class="subtitle">
+        Өз мақсаттарың мен күнделікті жетістіктеріңді бақыла.
+    </p>
 
     <section class="stats">
+
         <div class="card">
-            <h3>📌 Бүгінгі тапсырмалар</h3>
-            <p class="number">5</p>
+            <h3>🎯 Барлық мақсаттар</h3>
+            <p class="number"><?= $totalGoals ?></p>
         </div>
 
         <div class="card">
-            <h3>🎯 Мақсаттар</h3>
-            <p class="number">3</p>
+            <h3>⭐ Орындалған мақсаттар</h3>
+            <p class="number"><?= $completedGoals ?></p>
         </div>
 
         <div class="card">
-            <h3>⭐ Жетістіктер</h3>
-            <p class="number">12</p>
+            <h3>📔 Күнделік жазбалары</h3>
+            <p class="number"><?= $totalEntries ?></p>
         </div>
+
     </section>
 
     <section class="plan">
-        <h2>Бүгінгі жоспарым</h2>
+        <h2>Менің соңғы мақсаттарым</h2>
 
-        <div class="task">☐ Сабаққа дайындалу</div>
-        <div class="task">☐ Жоба бойынша жұмыс істеу</div>
-        <div class="task">☐ Күннің нәтижесін жазу</div>
+        <?php if (empty($goals)): ?>
+
+            <p class="empty">
+                Әзірге мақсаттарың жоқ. Алғашқы мақсатыңды қос!
+            </p>
+
+        <?php else: ?>
+
+            <?php foreach ($goals as $goal): ?>
+                <div class="goal">
+
+                    <h3>
+                        <?= htmlspecialchars(
+                            $goal["title"],
+                            ENT_QUOTES,
+                            "UTF-8"
+                        ) ?>
+                    </h3>
+
+                    <p class="muted">
+                        Күйі:
+                        <?= htmlspecialchars(
+                            $goal["status"] ?? "Жоспарда",
+                            ENT_QUOTES,
+                            "UTF-8"
+                        ) ?>
+                    </p>
+
+                </div>
+            <?php endforeach; ?>
+
+        <?php endif; ?>
+
+        <a href="goals.php" class="manage-link">
+            Мақсаттарды басқару →
+        </a>
+
     </section>
 </main>
 

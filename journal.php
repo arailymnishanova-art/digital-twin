@@ -1,127 +1,271 @@
 
+<?php
+session_start();
+require_once "db.php";
+
+// Жүйеге кіргенін тексеру
+if (!isset($_SESSION["user_id"])) {
+    header("Location: login.php");
+    exit;
+}
+
+$userId = (int) $_SESSION["user_id"];
+
+// CSRF қорғанысы
+if (empty($_SESSION["csrf_token"])) {
+    $_SESSION["csrf_token"] = bin2hex(random_bytes(32));
+}
+
+$csrfToken = $_SESSION["csrf_token"];
+$message = $_SESSION["flash_message"] ?? "";
+unset($_SESSION["flash_message"]);
+
+$allowedMoods = [
+    "😊 Қуанышты",
+    "😌 Сабырлы",
+    "😔 Көңілсіз",
+    "😴 Шаршаған"
+];
+
+// Жазбаларды қосу, өңдеу және өшіру
+if ($_SERVER["REQUEST_METHOD"] === "POST") {
+
+    $token = $_POST["csrf_token"] ?? "";
+
+    if (!hash_equals($csrfToken, $token)) {
+        $message = "Сұраныс жарамсыз. Бетті жаңартып көр.";
+    } else {
+
+        $action = $_POST["action"] ?? "";
+        $entryId = (int) ($_POST["entry_id"] ?? 0);
+
+        if ($action === "add" || $action === "edit") {
+
+            $title = trim($_POST["title"] ?? "");
+            $content = trim($_POST["content"] ?? "");
+            $mood = $_POST["mood"] ?? "";
+            $entryDate = $_POST["entry_date"] ?? "";
+
+            if ($title === "" || $content === "") {
+                $message = "Тақырып пен жазбаны толтыр.";
+            } elseif (
+                !preg_match('/^\d{4}-\d{2}-\d{2}$/', $entryDate)
+                || !checkdate(
+                    (int) substr($entryDate, 5, 2),
+                    (int) substr($entryDate, 8, 2),
+                    (int) substr($entryDate, 0, 4)
+                )
+            ) {
+                $message = "Күнді дұрыс таңда.";
+            } elseif ($mood !== "" && !in_array($mood, $allowedMoods, true)) {
+                $message = "Көңіл күйді дұрыс таңда.";
+            } else {
+
+                if ($action === "add") {
+
+                    $stmt = $pdo->prepare(
+                        "INSERT INTO journal_entries
+                        (user_id, title, content, mood, entry_date)
+                        VALUES (?, ?, ?, ?, ?)"
+                    );
+
+                    $stmt->execute([
+                        $userId,
+                        $title,
+                        $content,
+                        $mood,
+                        $entryDate
+                    ]);
+
+                    $_SESSION["flash_message"] =
+                        "Күнделік жазбасы сәтті қосылды!";
+
+                } elseif ($action === "edit" && $entryId > 0) {
+
+                    $stmt = $pdo->prepare(
+                        "UPDATE journal_entries
+                         SET title = ?, content = ?, mood = ?, entry_date = ?
+                         WHERE id = ? AND user_id = ?"
+                    );
+
+                    $stmt->execute([
+                        $title,
+                        $content,
+                        $mood,
+                        $entryDate,
+                        $entryId,
+                        $userId
+                    ]);
+
+                    $_SESSION["flash_message"] =
+                        "Күнделік жазбасы жаңартылды!";
+                }
+
+                if ($action === "add" || ($action === "edit" && $entryId > 0)) {
+                    header("Location: journal.php");
+                    exit;
+                }
+            }
+
+        } elseif ($action === "delete" && $entryId > 0) {
+
+            $stmt = $pdo->prepare(
+                "DELETE FROM journal_entries
+                 WHERE id = ? AND user_id = ?"
+            );
+
+            $stmt->execute([$entryId, $userId]);
+
+            $_SESSION["flash_message"] =
+                $stmt->rowCount() > 0
+                ? "Жазба өшірілді!"
+                : "Жазба табылмады.";
+
+            header("Location: journal.php");
+            exit;
+        }
+    }
+}
+
+// Өңделетін жазбаны алу
+$editEntry = null;
+
+if (isset($_GET["edit"])) {
+
+    $stmt = $pdo->prepare(
+        "SELECT id, title, content, mood, entry_date
+         FROM journal_entries
+         WHERE id = ? AND user_id = ?"
+    );
+
+    $stmt->execute([(int) $_GET["edit"], $userId]);
+    $editEntry = $stmt->fetch(PDO::FETCH_ASSOC);
+}
+
+// Пайдаланушының барлық жазбалары
+$stmt = $pdo->prepare(
+    "SELECT id, title, content, mood, entry_date
+     FROM journal_entries
+     WHERE user_id = ?
+     ORDER BY entry_date DESC, id DESC"
+);
+
+$stmt->execute([$userId]);
+$entries = $stmt->fetchAll(PDO::FETCH_ASSOC);
+?>
+
 <!DOCTYPE html>
 <html lang="kk">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Менің күнделігім — Digital Twin</title>
+
+    <title>Менің күнделігім | Digital Twin</title>
 
     <style>
         * {
             box-sizing: border-box;
-            margin: 0;
-            padding: 0;
         }
 
         body {
+            margin: 0;
+            padding: 30px 16px;
+            background: #f4f5fa;
+            color: #252842;
             font-family: Arial, sans-serif;
-            background: #f7f5ff;
-            color: #29243d;
-        }
-
-        header {
-            background: white;
-            padding: 22px 8%;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 15px;
-        }
-
-        .logo {
-            color: #8064d8;
-            font-size: 24px;
-            font-weight: bold;
-        }
-
-        nav a {
-            color: #51486a;
-            text-decoration: none;
-            margin-left: 18px;
         }
 
         main {
-            max-width: 850px;
-            margin: 40px auto;
-            padding: 0 20px;
+            max-width: 720px;
+            margin: auto;
         }
 
-        h1 {
-            margin-bottom: 12px;
-        }
-
-        .subtitle {
-            color: #706982;
-            margin-bottom: 28px;
-            line-height: 1.6;
-        }
-
-        .journal-box {
+        .card {
             background: white;
-            padding: 28px;
+            padding: 24px;
+            margin-bottom: 20px;
             border-radius: 18px;
-            box-shadow: 0 5px 20px #29243d0d;
+            box-shadow: 0 8px 25px #2528420d;
+        }
+
+        h1, h2 {
+            margin-top: 0;
         }
 
         label {
             display: block;
-            margin: 18px 0 8px;
-            font-weight: bold;
+            margin: 14px 0 7px;
         }
 
         input, textarea, select {
             width: 100%;
-            padding: 13px;
-            border: 1px solid #ddd6f5;
+            padding: 12px;
+            border: 1px solid #dcdfea;
             border-radius: 10px;
-            font-size: 15px;
-            font-family: inherit;
+            font: inherit;
         }
 
         textarea {
-            min-height: 150px;
+            min-height: 120px;
             resize: vertical;
         }
 
         button {
-            margin-top: 20px;
-            padding: 13px 22px;
-            background: #8064d8;
-            color: white;
-            border: none;
+            margin-top: 12px;
+            padding: 12px 20px;
+            border: 0;
             border-radius: 10px;
+            background: #7067e8;
+            color: white;
             cursor: pointer;
-            font-size: 15px;
+            font: inherit;
         }
 
-        .example {
-            background: #fff;
-            padding: 22px;
-            margin-top: 25px;
-            border-radius: 16px;
-            border-left: 4px solid #8064d8;
+        button:hover {
+            opacity: 0.9;
         }
 
-        .example p {
-            margin-top: 10px;
-            color: #706982;
-            line-height: 1.6;
+        .entry {
+            padding: 18px 0;
+            border-bottom: 1px solid #eeeef5;
+            overflow-wrap: anywhere;
         }
 
-        footer {
-            text-align: center;
-            padding: 25px;
-            color: #706982;
+        .entry:last-child {
+            border-bottom: 0;
         }
 
-        @media (max-width: 600px) {
-            header {
-                flex-direction: column;
-            }
+        .message {
+            padding: 12px;
+            background: #f0eaff;
+            border-radius: 8px;
+            color: #5146c8;
+        }
 
-            nav a {
-                margin: 0 6px;
+        .muted {
+            color: #777b8e;
+        }
+
+        a {
+            color: #6258dc;
+            text-decoration: none;
+        }
+
+        .actions {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+            margin-top: 12px;
+        }
+
+        .delete-button {
+            background: #c94c65;
+        }
+
+        @media (max-width: 480px) {
+            .card {
+                padding: 18px;
             }
         }
     </style>
@@ -129,105 +273,174 @@
 
 <body>
 
-<header>
-    <div class="logo">Digital Twin ✦</div>
-
-    <nav>
-        <a href="index.php">Басты бет</a>
-        <a href="login.php">Кіру</a>
-        <a href="dashboard.php">Статистика</a>
-    </nav>
-</header>
-
 <main>
-    <h1>Менің жеке күнделігім 📔</h1>
-    <p class="subtitle">
-        Ойларыңды, күнделікті оқиғаларыңды және жетістіктеріңді жаз.
-    </p>
 
-    <section class="journal-box">
-        <form id="journalForm">
-            <label for="date">Күні</label>
-            <input type="date" id="date" required>
+    <p><a href="dashboard.php">← Жеке кабинетке қайту</a></p>
+
+    <section class="card">
+
+        <h1>Менің күнделігім ✨</h1>
+
+        <p class="muted">
+            Ойларыңды, көңіл күйіңді және күнделікті оқиғаларды жаз.
+        </p>
+
+        <?php if ($message !== ""): ?>
+            <p class="message">
+                <?= htmlspecialchars($message, ENT_QUOTES, "UTF-8") ?>
+            </p>
+        <?php endif; ?>
+
+        <h2>
+            <?= $editEntry ? "Жазбаны өңдеу" : "Жаңа жазба қосу" ?>
+        </h2>
+
+        <form method="POST" action="journal.php">
+
+            <input type="hidden" name="csrf_token"
+                   value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, "UTF-8") ?>">
+
+            <input type="hidden" name="action"
+                   value="<?= $editEntry ? "edit" : "add" ?>">
+
+            <?php if ($editEntry): ?>
+                <input type="hidden" name="entry_id"
+                       value="<?= (int) $editEntry["id"] ?>">
+            <?php endif; ?>
 
             <label for="title">Жазбаның тақырыбы</label>
-            <input type="text" id="title"
-                   placeholder="Мысалы: Бүгінгі жетістігім"
-                   maxlength="100" required>
 
-            <label for="mood">Көңіл күйім</label>
-            <select id="mood" required>
+            <input
+                id="title"
+                name="title"
+                maxlength="200"
+                required
+                value="<?= htmlspecialchars($editEntry["title"] ?? "", ENT_QUOTES, "UTF-8") ?>"
+                placeholder="Мысалы, бүгінгі күнім"
+            >
+
+            <label for="content">Бүгінгі күнің қалай өтті?</label>
+
+            <textarea
+                id="content"
+                name="content"
+                required
+                placeholder="Ойларыңды осында жаз..."
+            ><?= htmlspecialchars($editEntry["content"] ?? "", ENT_QUOTES, "UTF-8") ?></textarea>
+
+            <label for="mood">Көңіл күйің</label>
+
+            <select id="mood" name="mood">
                 <option value="">Таңда</option>
-                <option>😊 Керемет</option>
-                <option>🙂 Жақсы</option>
-                <option>😐 Қалыпты</option>
-                <option>😔 Көңілсіз</option>
+
+                <?php foreach ($allowedMoods as $mood): ?>
+                    <option
+                        value="<?= htmlspecialchars($mood, ENT_QUOTES, "UTF-8") ?>"
+                        <?= ($editEntry["mood"] ?? "") === $mood ? "selected" : "" ?>
+                    >
+                        <?= htmlspecialchars($mood, ENT_QUOTES, "UTF-8") ?>
+                    </option>
+                <?php endforeach; ?>
+
             </select>
 
-            <label for="content">Күнделіктегі жазба</label>
-            <textarea id="content"
-                      placeholder="Бүгінгі күнің қалай өтті?"
-                      maxlength="3000" required></textarea>
+            <label for="entry_date">Күні</label>
 
-            <button type="submit">Жазбаны сақтау</button>
+            <input
+                id="entry_date"
+                type="date"
+                name="entry_date"
+                value="<?= htmlspecialchars($editEntry["entry_date"] ?? date("Y-m-d"), ENT_QUOTES, "UTF-8") ?>"
+                required
+            >
+
+            <button type="submit">
+                <?= $editEntry ? "Өзгерісті сақтау" : "Жазбаны сақтау" ?>
+            </button>
+
+            <?php if ($editEntry): ?>
+                <p>
+                    <a href="journal.php">Өңдеуден бас тарту</a>
+                </p>
+            <?php endif; ?>
+
         </form>
+
     </section>
 
-    <section id="entries">
-        <div class="example">
-            <h3>✨ Күнделіктің мақсаты</h3>
-            <p>
-                Әр күніңді жазып, көңіл күйіңді бақыла.
-                Уақыт өте келе өзіңнің жетістіктеріңді
-                және өзгерістеріңді байқай аласың.
+    <section class="card">
+
+        <h2>Менің жазбаларым</h2>
+
+        <?php if (empty($entries)): ?>
+
+            <p class="muted">
+                Әзірге жазбалар жоқ. Алғашқы жазбаңды қос!
             </p>
-        </div>
+
+        <?php else: ?>
+
+            <?php foreach ($entries as $entry): ?>
+
+                <article class="entry">
+
+                    <h3>
+                        <?= htmlspecialchars($entry["title"], ENT_QUOTES, "UTF-8") ?>
+                    </h3>
+
+                    <p class="muted">
+                        <?= htmlspecialchars($entry["entry_date"], ENT_QUOTES, "UTF-8") ?>
+
+                        <?php if (!empty($entry["mood"])): ?>
+                            · <?= htmlspecialchars($entry["mood"], ENT_QUOTES, "UTF-8") ?>
+                        <?php endif; ?>
+                    </p>
+
+                    <p>
+                        <?= nl2br(htmlspecialchars(
+                            $entry["content"],
+                            ENT_QUOTES,
+                            "UTF-8"
+                        )) ?>
+                    </p>
+
+                    <div class="actions">
+
+                        <a href="journal.php?edit=<?= (int) $entry["id"] ?>">
+                            Өңдеу
+                        </a>
+
+                        <form
+                            method="POST"
+                            action="journal.php"
+                            onsubmit="return confirm('Осы жазбаны өшіргің келе ме?');"
+                        >
+
+                            <input type="hidden" name="csrf_token"
+                                   value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, "UTF-8") ?>">
+
+                            <input type="hidden" name="action" value="delete">
+
+                            <input type="hidden" name="entry_id"
+                                   value="<?= (int) $entry["id"] ?>">
+
+                            <button type="submit" class="delete-button">
+                                Өшіру
+                            </button>
+
+                        </form>
+
+                    </div>
+
+                </article>
+
+            <?php endforeach; ?>
+
+        <?php endif; ?>
+
     </section>
+
 </main>
-
-<footer>© 2026 Digital Twin</footer>
-
-<script>
-    const dateInput = document.getElementById("date");
-    dateInput.value = new Date().toLocaleDateString("en-CA");
-
-    const form = document.getElementById("journalForm");
-    const entries = document.getElementById("entries");
-
-    form.addEventListener("submit", function(event) {
-        event.preventDefault();
-
-        const date = dateInput.value;
-        const title = document.getElementById("title").value.trim();
-        const mood = document.getElementById("mood").value;
-        const content = document.getElementById("content").value.trim();
-
-        if (!date || !title || !mood || !content) {
-            alert("Барлық жолды толтыр!");
-            return;
-        }
-
-        const card = document.createElement("div");
-        card.className = "example";
-
-        const heading = document.createElement("h3");
-        heading.textContent = title;
-
-        const details = document.createElement("p");
-        details.textContent = date + " · " + mood;
-
-        const text = document.createElement("p");
-        text.textContent = content;
-
-        card.append(heading, details, text);
-        entries.prepend(card);
-
-        form.reset();
-        dateInput.value = new Date().toLocaleDateString("en-CA");
-
-        alert("Жазба осы бетке қосылды!");
-    });
-</script>
 
 </body>
 </html>
