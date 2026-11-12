@@ -36,4 +36,4 @@ Digital Twin — күнделікті жоспарларды, жеке жазб�
 
 Студенттің жеке жобасы.
 
-![Digital Twin ER Diagram](er-diagram.jpeg)
+![Digital Twin ER Diagram](er-diagram2.jpg)
