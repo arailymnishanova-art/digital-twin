@@ -1,4 +1,3 @@
-
 <?php
 session_start();
 require_once __DIR__ . "/config/db.php";
@@ -59,6 +58,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 $message = "Күнді дұрыс таңда.";
             } elseif ($mood !== "" && !in_array($mood, $allowedMoods, true)) {
                 $message = "Көңіл күйді дұрыс таңда.";
+            } elseif (mb_strlen($title) > 200) {
+                $message = "Тақырып 200 таңбадан аспауы керек.";
             } else {
 
                 if ($action === "add") {
@@ -98,7 +99,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                     ]);
 
                     $_SESSION["flash_message"] =
-                        "Күнделік жазбасы жаңартылды!";
+                        $stmt->rowCount() > 0
+                        ? "Күнделік жазбасы жаңартылды!"
+                        : "Өзгертуге арналған жазба табылмады.";
                 }
 
                 if ($action === "add" || ($action === "edit" && $entryId > 0)) {
@@ -159,7 +162,6 @@ $entries = $stmt->fetchAll(PDO::FETCH_ASSOC);
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
     <title>Менің күнделігім | Digital Twin</title>
 
     <style>
