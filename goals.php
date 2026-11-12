@@ -1,4 +1,3 @@
-
 <?php
 session_start();
 require_once __DIR__ . "/config/db.php";
@@ -11,76 +10,109 @@ if (!isset($_SESSION["user_id"])) {
 $userId = (int) $_SESSION["user_id"];
 $message = "";
 
+// CSRF токенін жасау
+if (empty($_SESSION["csrf_token"])) {
+    $_SESSION["csrf_token"] = bin2hex(random_bytes(32));
+}
+
+$csrfToken = $_SESSION["csrf_token"];
+
 // Мақсаттарды қосу, өңдеу, өшіру және күйін өзгерту
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
-    $action = $_POST["action"] ?? "";
-    $title = trim($_POST["title"] ?? "");
-    $description = trim($_POST["description"] ?? "");
-    $goalId = (int) ($_POST["goal_id"] ?? 0);
 
-    if ($action === "add") {
-        if ($title === "") {
-            $message = "Мақсаттың атауын енгіз.";
+    $postedToken = $_POST["csrf_token"] ?? "";
+
+    if (!hash_equals($csrfToken, $postedToken)) {
+        $message = "Қауіпсіздік қатесі. Бетті жаңартып көріңіз.";
+    } else {
+
+        $action = $_POST["action"] ?? "";
+        $title = trim($_POST["title"] ?? "");
+        $description = trim($_POST["description"] ?? "");
+        $goalId = (int) ($_POST["goal_id"] ?? 0);
+
+        if ($action === "add") {
+
+            if ($title === "") {
+                $message = "Мақсаттың атауын енгіз.";
+            } elseif (mb_strlen($title) > 200) {
+                $message = "Мақсат атауы 200 таңбадан аспауы керек.";
+            } else {
+                $stmt = $pdo->prepare(
+                    "INSERT INTO goals (user_id, title, description)
+                     VALUES (?, ?, ?)"
+                );
+                $stmt->execute([$userId, $title, $description]);
+
+                $message = "Мақсат сәтті қосылды!";
+            }
+
+        } elseif ($action === "edit") {
+
+            if ($goalId <= 0 || $title === "") {
+                $message = "Мақсаттың атауын дұрыс енгіз.";
+            } elseif (mb_strlen($title) > 200) {
+                $message = "Мақсат атауы 200 таңбадан аспауы керек.";
+            } else {
+                $stmt = $pdo->prepare(
+                    "UPDATE goals
+                     SET title = ?, description = ?
+                     WHERE id = ? AND user_id = ?"
+                );
+
+                $stmt->execute([
+                    $title,
+                    $description,
+                    $goalId,
+                    $userId
+                ]);
+
+                $message = "Мақсат жаңартылды!";
+            }
+
+        } elseif ($action === "status") {
+
+            $newStatus = $_POST["status"] ?? "";
+
+            $allowedStatuses = [
+                "Жоспарда",
+                "Орындалуда",
+                "Орындалды"
+            ];
+
+            if (
+                $goalId > 0 &&
+                in_array($newStatus, $allowedStatuses, true)
+            ) {
+                $stmt = $pdo->prepare(
+                    "UPDATE goals
+                     SET status = ?
+                     WHERE id = ? AND user_id = ?"
+                );
+
+                $stmt->execute([$newStatus, $goalId, $userId]);
+
+                $message = "Мақсаттың күйі жаңартылды!";
+            } else {
+                $message = "Мақсаттың күйін дұрыс таңда.";
+            }
+
+        } elseif ($action === "delete") {
+
+            if ($goalId > 0) {
+                $stmt = $pdo->prepare(
+                    "DELETE FROM goals
+                     WHERE id = ? AND user_id = ?"
+                );
+
+                $stmt->execute([$goalId, $userId]);
+
+                $message = "Мақсат өшірілді!";
+            }
+
         } else {
-            $stmt = $pdo->prepare(
-                "INSERT INTO goals (user_id, title, description)
-                 VALUES (?, ?, ?)"
-            );
-            $stmt->execute([$userId, $title, $description]);
-            $message = "Мақсат сәтті қосылды!";
+            $message = "Белгісіз әрекет.";
         }
-    }
-
-    elseif ($action === "edit") {
-        if ($goalId <= 0 || $title === "") {
-            $message = "Мақсаттың атауын дұрыс енгіз.";
-        } else {
-            $stmt = $pdo->prepare(
-                "UPDATE goals
-                 SET title = ?, description = ?
-                 WHERE id = ? AND user_id = ?"
-            );
-            $stmt->execute([
-                $title,
-                $description,
-                $goalId,
-                $userId
-            ]);
-            $message = "Мақсат жаңартылды!";
-        }
-    }
-
-    elseif ($action === "status") {
-        $newStatus = $_POST["status"] ?? "";
-        $allowedStatuses = [
-            "Жоспарда",
-            "Орындалуда",
-            "Орындалды"
-        ];
-
-        if (
-            $goalId > 0 &&
-            in_array($newStatus, $allowedStatuses, true)
-        ) {
-            $stmt = $pdo->prepare(
-                "UPDATE goals
-                 SET status = ?
-                 WHERE id = ? AND user_id = ?"
-            );
-            $stmt->execute([$newStatus, $goalId, $userId]);
-            $message = "Мақсаттың күйі жаңартылды!";
-        } else {
-            $message = "Мақсаттың күйін дұрыс таңда.";
-        }
-    }
-
-    elseif ($action === "delete" && $goalId > 0) {
-        $stmt = $pdo->prepare(
-            "DELETE FROM goals
-             WHERE id = ? AND user_id = ?"
-        );
-        $stmt->execute([$goalId, $userId]);
-        $message = "Мақсат өшірілді!";
     }
 }
 
@@ -93,6 +125,7 @@ if (isset($_GET["edit"])) {
          FROM goals
          WHERE id = ? AND user_id = ?"
     );
+
     $stmt->execute([(int) $_GET["edit"], $userId]);
     $editGoal = $stmt->fetch(PDO::FETCH_ASSOC);
 }
@@ -104,6 +137,7 @@ $stmt = $pdo->prepare(
      WHERE user_id = ?
      ORDER BY id DESC"
 );
+
 $stmt->execute([$userId]);
 $goals = $stmt->fetchAll(PDO::FETCH_ASSOC);
 ?>
@@ -135,6 +169,7 @@ $goals = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         a {
             color: #6545a5;
+            text-decoration: none;
         }
 
         .card {
@@ -215,10 +250,13 @@ $goals = $stmt->fetchAll(PDO::FETCH_ASSOC);
 </head>
 
 <body>
+
 <main>
+
     <p><a href="dashboard.php">← Жеке кабинетке қайту</a></p>
 
     <section class="card">
+
         <h1>🎯 Менің мақсаттарым</h1>
         <p>Мақсаттарыңды жазып, өз жетістіктеріңді бақыла.</p>
 
@@ -233,6 +271,10 @@ $goals = $stmt->fetchAll(PDO::FETCH_ASSOC);
         </h2>
 
         <form method="POST" action="goals.php">
+
+            <input type="hidden" name="csrf_token"
+                   value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, "UTF-8") ?>">
+
             <input type="hidden" name="action"
                    value="<?= $editGoal ? "edit" : "add" ?>">
 
@@ -242,6 +284,7 @@ $goals = $stmt->fetchAll(PDO::FETCH_ASSOC);
             <?php endif; ?>
 
             <label for="title">Мақсаттың атауы</label>
+
             <input
                 id="title"
                 name="title"
@@ -252,6 +295,7 @@ $goals = $stmt->fetchAll(PDO::FETCH_ASSOC);
             >
 
             <label for="description">Сипаттамасы</label>
+
             <textarea
                 id="description"
                 name="description"
@@ -265,17 +309,25 @@ $goals = $stmt->fetchAll(PDO::FETCH_ASSOC);
             <?php if ($editGoal): ?>
                 <a href="goals.php">Өңдеуден бас тарту</a>
             <?php endif; ?>
+
         </form>
+
     </section>
 
     <section class="card">
+
         <h2>Менің тізімім</h2>
 
         <?php if (empty($goals)): ?>
+
             <p class="muted">Әзірге мақсат қосылмаған.</p>
+
         <?php else: ?>
+
             <?php foreach ($goals as $goal): ?>
+
                 <article class="goal">
+
                     <h3>
                         <?= htmlspecialchars($goal["title"], ENT_QUOTES, "UTF-8") ?>
                     </h3>
@@ -309,7 +361,12 @@ $goals = $stmt->fetchAll(PDO::FETCH_ASSOC);
                     <?php endif; ?>
 
                     <form method="POST" action="goals.php">
+
+                        <input type="hidden" name="csrf_token"
+                               value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, "UTF-8") ?>">
+
                         <input type="hidden" name="action" value="status">
+
                         <input type="hidden" name="goal_id"
                                value="<?= (int) $goal["id"] ?>">
 
@@ -321,29 +378,36 @@ $goals = $stmt->fetchAll(PDO::FETCH_ASSOC);
                             id="status-<?= (int) $goal["id"] ?>"
                             name="status"
                         >
+
                             <?php
                             $statuses = [
                                 "Жоспарда",
                                 "Орындалуда",
                                 "Орындалды"
                             ];
+
                             $currentStatus = $goal["status"] ?? "Жоспарда";
                             ?>
 
                             <?php foreach ($statuses as $status): ?>
+
                                 <option
                                     value="<?= htmlspecialchars($status, ENT_QUOTES, "UTF-8") ?>"
                                     <?= $currentStatus === $status ? "selected" : "" ?>
                                 >
                                     <?= htmlspecialchars($status, ENT_QUOTES, "UTF-8") ?>
                                 </option>
+
                             <?php endforeach; ?>
+
                         </select>
 
                         <button type="submit">Күйді сақтау</button>
+
                     </form>
 
                     <div class="actions">
+
                         <a href="goals.php?edit=<?= (int) $goal["id"] ?>">
                             Өңдеу
                         </a>
@@ -353,19 +417,32 @@ $goals = $stmt->fetchAll(PDO::FETCH_ASSOC);
                             action="goals.php"
                             onsubmit="return confirm('Осы мақсатты өшіргің келе ме?');"
                         >
+
+                            <input type="hidden" name="csrf_token"
+                                   value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, "UTF-8") ?>">
+
                             <input type="hidden" name="action" value="delete">
+
                             <input type="hidden" name="goal_id"
                                    value="<?= (int) $goal["id"] ?>">
 
                             <button class="delete-button" type="submit">
                                 Өшіру
                             </button>
+
                         </form>
+
                     </div>
+
                 </article>
+
             <?php endforeach; ?>
+
         <?php endif; ?>
+
     </section>
+
 </main>
+
 </body>
 </html>
