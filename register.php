@@ -1,8 +1,8 @@
-
 <?php
 require_once __DIR__ . "/config/db.php";
 
 $message = "";
+$success = false;
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $name = trim($_POST["name"] ?? "");
@@ -23,9 +23,12 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 "INSERT INTO users (name, email, password)
                  VALUES (?, ?, ?)"
             );
+
             $stmt->execute([$name, $email, $hash]);
 
-            $message = "Тіркелу сәтті аяқталды! Енді кіруге болады.";
+            $message = "Тіркелу сәтті аяқталды! Енді аккаунтыңа кіре аласың.";
+            $success = true;
+
         } catch (PDOException $e) {
             if ($e->getCode() === "23000") {
                 $message = "Бұл электрондық пошта бұрын тіркелген.";
@@ -36,14 +39,19 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     }
 }
 ?>
+
 <!DOCTYPE html>
 <html lang="kk">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Тіркелу | Digital Twin</title>
+
     <style>
-        * { box-sizing: border-box; }
+        * {
+            box-sizing: border-box;
+        }
+
         body {
             margin: 0;
             min-height: 100vh;
@@ -53,6 +61,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             font-family: Arial, sans-serif;
             color: #252842;
         }
+
         .card {
             width: min(420px, 92%);
             padding: 32px;
@@ -60,15 +69,34 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             border-radius: 20px;
             box-shadow: 0 10px 35px #25284212;
         }
-        h1 { margin-top: 0; }
-        p { color: #666b80; }
-        label { display: block; margin: 16px 0 7px; }
+
+        h1 {
+            margin-top: 0;
+            color: #7067e8;
+        }
+
+        p {
+            color: #666b80;
+            line-height: 1.5;
+        }
+
+        label {
+            display: block;
+            margin: 16px 0 7px;
+        }
+
         input {
             width: 100%;
             padding: 12px;
             border: 1px solid #dcdfea;
             border-radius: 10px;
         }
+
+        input:focus {
+            outline: none;
+            border-color: #7067e8;
+        }
+
         button {
             width: 100%;
             margin-top: 22px;
@@ -80,14 +108,27 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             font-size: 16px;
             cursor: pointer;
         }
-        .message { color: #5146c8; line-height: 1.5; }
-        a { color: #6258dc; }
+
+        button:hover {
+            background: #574dc8;
+        }
+
+        .message {
+            color: #5146c8;
+            line-height: 1.5;
+        }
+
+        a {
+            color: #6258dc;
+            text-decoration: none;
+        }
     </style>
 </head>
+
 <body>
     <main class="card">
         <h1>Қош келдің! ✨</h1>
-        <p>Digital Twin жүйесінде аккаунт жаса.</p>
+        <p>Digital Twin жүйесінде жеке аккаунтыңды жаса.</p>
 
         <?php if ($message !== ""): ?>
             <p class="message">
@@ -97,16 +138,34 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
         <form method="POST">
             <label for="name">Атың</label>
-            <input id="name" name="name" required maxlength="100"
-                   autocomplete="name">
+            <input
+                id="name"
+                type="text"
+                name="name"
+                required
+                maxlength="100"
+                autocomplete="name"
+            >
 
             <label for="email">Электрондық пошта</label>
-            <input id="email" type="email" name="email" required
-                   maxlength="150" autocomplete="email">
+            <input
+                id="email"
+                type="email"
+                name="email"
+                required
+                maxlength="150"
+                autocomplete="email"
+            >
 
             <label for="password">Құпиясөз</label>
-            <input id="password" type="password" name="password"
-                   required minlength="8" autocomplete="new-password">
+            <input
+                id="password"
+                type="password"
+                name="password"
+                required
+                minlength="8"
+                autocomplete="new-password"
+            >
 
             <button type="submit">Тіркелу</button>
         </form>
