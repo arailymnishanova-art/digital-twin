@@ -2,7 +2,6 @@
 session_start();
 require_once __DIR__ . "/config/db.php";
 
-// Жүйеге кіргенін тексеру
 if (!isset($_SESSION["user_id"])) {
     header("Location: login.php");
     exit;
