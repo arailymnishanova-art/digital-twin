@@ -1,3 +1,4 @@
+
 <footer>
     <p>© 2026 Digital Twin | Жеке цифрлық күнделік</p>
 </footer>
